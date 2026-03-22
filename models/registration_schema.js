@@ -24,6 +24,9 @@ const registration = new Schema(
     paymentId: {
       type: String,
     },
+    orderId: {
+      type: String,
+    },
     paidAt: {
       type: Date,
     },
