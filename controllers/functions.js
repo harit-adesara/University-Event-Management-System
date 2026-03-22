@@ -14,7 +14,7 @@ const createEvent = asyncHandler(async (req, res) => {
     //console.log("------");
     // console.log(req.body);
 
-    const { name, detail, date, venue } = req.body;
+    const { name, detail, date, venue, capacity } = req.body;
     let { amount } = req.body;
     if (!amount) {
       amount = 0;
@@ -31,6 +31,8 @@ const createEvent = asyncHandler(async (req, res) => {
       date,
       venue,
       amount,
+      capacity: capacity || null,
+      registeredCount: 0,
     });
     await event.save();
     res.status(200).json(new ApiResponse(200, {}, "Event created"));
@@ -125,11 +127,19 @@ const eventList_Admin_Techer_Club = asyncHandler(async (req, res) => {
       if (req.query.myEvents === "true") {
         filter.organizedBy = req.user.fullname;
       }
+      if (req.query.date) {
+        filter.date = new Date(req.query.date);
+      }
       const events = await Event.find(filter).sort({ date: 1 });
       if (events.length === 0) {
         throw new ApiError(404, "Events not found");
       }
-      return res.status(200).json(new ApiResponse(200, events));
+      const updatedEvents = events.map((e) => ({
+        ...e._doc,
+        seatsLeft: e.capacity !== null ? e.capacity - e.registeredCount : null,
+        isFull: e.capacity !== null ? e.registeredCount >= e.capacity : false,
+      }));
+      return res.status(200).json(new ApiResponse(200, updatedEvents));
     }
   } catch (error) {
     throw new ApiError(404, "Error occured in event list");
@@ -158,7 +168,12 @@ const eventListStudent = asyncHandler(async (req, res) => {
     if (!event) {
       throw new ApiError(404, "Events not found");
     }
-    return res.status(200).json(new ApiResponse(200, { event }));
+    const updatedEvents = event.map((e) => ({
+      ...e._doc,
+      seatsLeft: e.capacity !== null ? e.capacity - e.registeredCount : null,
+      isFull: e.capacity !== null ? e.registeredCount >= e.capacity : false,
+    }));
+    return res.status(200).json(new ApiResponse(200, { updatedEvents }));
   } catch (error) {
     console.log(error);
     throw new ApiError(404, "Error in events list");
@@ -218,64 +233,74 @@ const updateProfile = asyncHandler(async (req, res) => {
 });
 
 const registerInEvent = asyncHandler(async (req, res) => {
-  try {
-    const { eventId } = req.params;
-    const event = await Event.findById(eventId);
-    if (!event) {
-      throw new ApiError(404, "Event not found");
-    }
-    if (event.status !== "Accepted") {
-      throw new ApiError(404, "Event is not accepted yet");
-    }
-    const existing = await Registration.findOne({
+  const { eventId } = req.params;
+
+  const existing = await Registration.findOne({
+    user: req.user._id,
+    event: eventId,
+  });
+
+  if (existing) {
+    throw new ApiError(400, "User already registered");
+  }
+
+  const event = await Event.findOneAndUpdate(
+    {
+      _id: eventId,
+      status: "Accepted",
+      $or: [
+        { capacity: null },
+        { $expr: { $lt: ["$registeredCount", "$capacity"] } },
+      ],
+    },
+    {
+      $inc: { registeredCount: 1 },
+    },
+    { new: true },
+  );
+
+  if (!event) {
+    throw new ApiError(400, "Event is full or not available");
+  }
+
+  if (event.amount === 0) {
+    const registration = await Registration.create({
       user: req.user._id,
       event: eventId,
-    });
-    if (existing) {
-      throw new ApiError(404, "User already registerd");
-    }
-    if (event.amount === 0) {
-      const registration = await Registration.create({
-        user: req.user._id,
-        event: eventId,
-        status: "Free",
-      });
-      return res
-        .status(200)
-        .json(
-          new ApiResponse(
-            200,
-            { isPaid: false, registration },
-            "Registation done",
-          ),
-        );
-    }
-    const order = await razorpayInstance.orders.create({
-      amount: event.amount * 100,
-      currency: "INR",
-      receipt: `rec_${req.user._id.toString().slice(-8)}_${eventId.toString().slice(-8)}`,
+      status: "Free",
     });
 
-    await Registration.create({
-      user: req.user._id,
-      event: eventId,
-      status: "Pending",
-      orderId: order.id,
-    });
     return res.status(200).json(
       new ApiResponse(200, {
-        isPaid: true,
-        order: {
-          orderId: order.id,
-          amount: order.amount,
-          currency: order.currency,
-        },
+        isPaid: false,
+        registration,
       }),
     );
-  } catch (error) {
-    console.log(error);
-    throw new ApiError(404, "Error while registration");
   }
+
+  const order = await razorpayInstance.orders.create({
+    amount: event.amount * 100,
+    currency: "INR",
+    receipt: `rec_${req.user._id.toString().slice(-8)}_${eventId.toString().slice(-8)}`,
+  });
+
+  await Registration.create({
+    user: req.user._id,
+    event: eventId,
+    status: "Pending",
+    orderId: order.id,
+  });
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      isPaid: true,
+      order: {
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+      },
+    }),
+  );
 });
 
 const modifyEvent = asyncHandler(async (req, res) => {

@@ -30,6 +30,15 @@ const eventSchema = new Schema(
       required: true,
       trim: true,
     },
+    capacity: {
+      type: Number,
+      default: null,
+      min: 1,
+    },
+    registeredCount: {
+      type: Number,
+      default: 0,
+    },
     status: {
       type: String,
       enum: ["Pending", "Accepted", "Rejected"],

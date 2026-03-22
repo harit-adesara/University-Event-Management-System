@@ -24,6 +24,9 @@ const registration = new Schema(
     paymentId: {
       type: String,
     },
+    orderId: {
+      type: String,
+    },
     paidAt: {
       type: Date,
     },
@@ -32,5 +35,7 @@ const registration = new Schema(
     timestamps: true,
   },
 );
+
+registration.index({ user: 1, event: 1 }, { unique: true });
 
 export const Registration = mongoose.model("Registration", registration);
