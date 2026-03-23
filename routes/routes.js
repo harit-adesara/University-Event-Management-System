@@ -73,8 +73,12 @@ router
     changePassword,
   );
 
+import { upload } from "../middleware/multer.js";
+
 // Event routes
-router.route("/createEvent").post(verifyJWT, createEvent);
+router
+  .route("/createEvent")
+  .post(verifyJWT, upload.single("image"), createEvent);
 
 router.route("/createUser").post(verifyJWT, createUserByAdmin);
 
@@ -93,7 +97,9 @@ router.route("/myEvent").get(verifyJWT, myEvent);
 router.route("/update/profile").patch(verifyJWT, updateProfile);
 
 router.route("/register/event/:eventId").post(verifyJWT, registerInEvent);
-router.route("/event/modify/:eventId").patch(verifyJWT, modifyEvent);
+router
+  .route("/event/modify/:eventId")
+  .patch(verifyJWT, upload.single("image"), modifyEvent);
 router.route("/event/delete/:eventId").delete(verifyJWT, deleteEvent);
 
 import { verifyPayment } from "../controllers/payment_controller.js";

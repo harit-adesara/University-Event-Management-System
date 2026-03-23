@@ -14,6 +14,11 @@ const eventSchema = new Schema(
     },
     photo: {
       type: String,
+      default: null,
+    },
+    photoId: {
+      type: String,
+      default: null,
     },
     detail: {
       type: String,

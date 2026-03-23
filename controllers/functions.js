@@ -5,6 +5,7 @@ import { asyncHandler } from "../utils/aysnc_handler.js";
 import { ApiError } from "../utils/api_error.js";
 import { ApiResponse } from "../utils/api_response.js";
 import { razorpayInstance } from "../payment/payment.js";
+import cloudinary from "../db/cloudinary.js";
 
 const createEvent = asyncHandler(async (req, res) => {
   try {
@@ -24,6 +25,23 @@ const createEvent = asyncHandler(async (req, res) => {
       throw new ApiError(400, "All fields are required");
     }
 
+    let imageUrl = null;
+    let imageId = null;
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: "events image" },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          },
+        );
+        stream.end(req.file.buffer);
+      });
+      imageUrl = result.secure_url;
+      imageId = result.public_id;
+    }
+
     const event = await Event.create({
       name,
       organizedBy: req.user.fullname,
@@ -33,6 +51,8 @@ const createEvent = asyncHandler(async (req, res) => {
       amount,
       capacity: capacity || null,
       registeredCount: 0,
+      photo: imageUrl,
+      photoId: imageId,
     });
     await event.save();
     res.status(200).json(new ApiResponse(200, {}, "Event created"));
@@ -139,7 +159,7 @@ const eventList_Admin_Techer_Club = asyncHandler(async (req, res) => {
         seatsLeft: e.capacity !== null ? e.capacity - e.registeredCount : null,
         isFull: e.capacity !== null ? e.registeredCount >= e.capacity : false,
       }));
-      return res.status(200).json(new ApiResponse(200, updatedEvents));
+      return res.status(200).json(new ApiResponse(200, { updatedEvents }));
     }
   } catch (error) {
     throw new ApiError(404, "Error occured in event list");
@@ -333,6 +353,25 @@ const modifyEvent = asyncHandler(async (req, res) => {
       }
       event[field] = updates[field];
     });
+
+    if (req.file) {
+      if (event.photoId) {
+        await cloudinary.uploader.destroy(event.photoId);
+      }
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: "events image" },
+          (err, result) => {
+            if (err) reject(err);
+            else resolve(result);
+          },
+        );
+        stream.end(req.file.buffer);
+      });
+      event.photo = result.secure_url;
+      event.photoId = result.public_id;
+    }
+
     await event.save();
     return res
       .status(200)
@@ -360,6 +399,9 @@ const deleteEvent = asyncHandler(async (req, res) => {
         403,
         "You do not have permission to delete this event",
       );
+    }
+    if (event.photoId) {
+      await cloudinary.uploader.destroy(event.photoId);
     }
     await Event.findByIdAndDelete(eventId);
     return res
