@@ -12,15 +12,16 @@ const sendEmail = async (option) => {
   const emailTextual = mailGenerator.generatePlaintext(option.mailgenContent);
   const emailHtml = mailGenerator.generate(option.mailgenContent);
   const transporter = nodemailer.createTransport({
-    host: process.env.MAILTRAP_SMTP_HOST,
-    port: process.env.MAILTRAP_SMTP_PORT,
+    host: process.env.GMAIL_HOST,
+    port: process.env.GMAIL_PORT,
+    secure: false,
     auth: {
-      user: process.env.MAILTRAP_SMTP_USER,
-      pass: process.env.MAILTRAP_SMTP_PASS,
+      user: process.env.GMAIL_USER,
+      pass: process.env.GMAIL_PASS,
     },
   });
   const mail = {
-    from: "mail.eventmanagement@example.com",
+    from: '"UEMS" <process.env.GMAIL_HOST>',
     to: option.email,
     subject: option.subject,
     text: emailTextual,
