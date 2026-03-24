@@ -6,6 +6,7 @@ import { ApiError } from "../utils/api_error.js";
 import { ApiResponse } from "../utils/api_response.js";
 import { razorpayInstance } from "../payment/payment.js";
 import cloudinary from "../db/cloudinary.js";
+import { redis } from "../db/redis.js";
 
 const createEvent = asyncHandler(async (req, res) => {
   try {
