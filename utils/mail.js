@@ -21,7 +21,7 @@ const sendEmail = async (option) => {
     },
   });
   const mail = {
-    from: '"UEMS" <process.env.GMAIL_HOST>',
+    from: `"UEMS" <${process.env.GMAIL_USER}>`,
     to: option.email,
     subject: option.subject,
     text: emailTextual,
